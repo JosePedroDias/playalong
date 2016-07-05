@@ -22,7 +22,7 @@
 
     <script>
       ajax({
-        uri: 'SONGS/list.json',
+        uri: 'songs/list.json',
         cb: function(err, res) {
           var ulEl = document.querySelector('ul');
           res = JSON.parse(res);
