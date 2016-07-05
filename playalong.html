@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+
+		<title>playalong!</title>
+
+		<link rel="stylesheet" type="text/css" href="eventsStream.css">
+		<link rel="stylesheet" type="text/css" href="http://fonts.googleapis.com/css?family=PT+Sans+Narrow&amp;subset=latin,latin-ext">
+
+		<style type="text/css">
+			#buttons {
+				font-size: 0;
+			}
+
+			button {
+				border-width: 0;
+				background-color: #000;
+				color: #FFF;
+				font-weight: bold;
+				font-size: 16px;
+				padding: 4px;
+			}
+
+			button:hover {
+				background-color: #444;
+			}
+		</style>
+	</head>
+
+	<body>
+		<canvas width="512" height="1024"></canvas>
+
+		<script type="text/javascript" src="webaudioapi.js"></script>
+
+    <script type="text/javascript" src="drumsGroups.js"></script>
+    <script type="text/javascript" src="drumsMap.js"></script>
+
+		<script type="text/javascript" src="ajax.js"></script>
+		<script type="text/javascript" src="eventsStreamWidget.js"></script>
+		<script type="text/javascript" src="playSamplesWidget.js"></script>
+    <script type="text/javascript" src="playFromMidi.js"></script>
+		<script type="text/javascript" src="samples/jam_with_chrome/mapping.js"></script>
+
+		<div id="buttons">
+			<input type="range" min="0" max="100">
+			<button onclick="togglePlayback()" >toggle playback</button>
+			<button onclick="toggleAutoDrums()">toggle auto-drums</button>
+			<button onclick="rewind()"         >rewind</button>
+		</div>
+
+		<script type="text/javascript">
+			(function() {
+				'use strict';
+
+				var autoDrums = false;
+
+        var song = location.search.substring( location.search.indexOf('track=') + 6)
+
+				var volume = 0.2;
+
+				var speed = 1;
+				// var speed = 0.75;
+
+				//var oggUrl   = 'SONGS/' + song + '/no_drums.ogg';
+				var oggUrl   = 'SONGS/' + song + '/only_drums.ogg';
+
+				var drumsUrl = 'SONGS/' + song + '/only_drums.json';
+
+				var audioEl = document.createElement('audio');
+				audioEl.type = 'audio/ogg';
+				audioEl.src = oggUrl;
+				document.body.appendChild(audioEl);
+				audioEl.volume = volume;
+				audioEl.playbackRate = speed;
+				audioEl.play();
+
+
+
+        function group1(res) {
+          var foundNotes = {};
+          res.forEach(function(e) {
+            foundNotes[e.n] = true;
+          });
+          foundNotes = Object.keys(foundNotes);
+          foundNotes = foundNotes.map(parseFloat);
+          //console.log('foundNotes', foundNotes);
+
+          var events = [];
+          foundNotes.forEach(function(note, i) {
+            var bag = [];
+            res.forEach(function(e) {
+              if (e.n === note) {
+                bag.push(e);
+              }
+            });
+            events.push(bag);
+          });
+          //console.log('events', events);
+
+          return {
+            channelLabels: foundNotes,
+            laneEvents:    events
+          }
+        }
+
+
+
+        function group2(res) {
+          var lookup = {};
+          drumsGroups.groups.forEach(function(grp, grpIdx) {
+            grp.forEach(function(note) {
+              lookup[note] = grpIdx;
+            });
+          });
+
+          var foundNotes = {};
+          res.forEach(function(e) {
+            if (!isFinite(lookup[e.n])) {
+              window.alert('not found in mapping:' + drumsMap[e.n] + ' (' + e.n + ')!');
+            }
+            foundNotes[ lookup[e.n] ] = true;
+          });
+          foundNotes = Object.keys(foundNotes);
+          var newMap = {};
+          foundNotes = foundNotes.map(function(grpIdx, i) {
+            newMap[grpIdx] = i;
+            return {
+              notes: drumsGroups.groups[grpIdx],
+              label: drumsGroups.labels[grpIdx]
+            }
+          });
+          //console.log('foundNotes', foundNotes);
+
+          var len = foundNotes.length;
+
+          var lanes = new Array(len);
+          for (var i = 0; i < len; ++i) {
+            lanes[i] = [];
+          }
+
+          res.forEach(function(e) {
+            var grpIdx = newMap[ lookup[e.n] ];
+            lanes[grpIdx].push(e);
+          });
+          //console.log('events', lanes);
+
+          return {
+            channelLabels: foundNotes.map(function(fn) { return fn.label; }),
+            laneEvents:    lanes
+          }
+        }
+
+
+
+				ajax({
+					uri: drumsUrl,
+					cb: function(err, res) {
+						if (err) { return window.alert(err); }
+						res = JSON.parse(res);
+            // console.log(res);
+
+            var data = group2(res);
+
+						var es = eventsStreamWidget({
+							canvas: document.getElementsByTagName('canvas')[0],
+							labels: data.channelLabels,
+							colors: 'F00 0F0 00F FF0 F0F 0FF 700 070 007'.split(' '),
+							events: data.laneEvents,
+							future: 2.5,
+							past:   0.5,
+							onEvent: function(ev) {
+                //console.log('%s -> %s %s', ev.t.toFixed(3), ev.n, Math.round(ev.v/127*100) + '%');
+
+								//var key = ev.channelNr + '_' + ev.variant;
+
+								//console.log('%s -> %s', key, drumsMapping[key]);
+
+								if (autoDrums) {
+									//window.playSound_( drumsMapping[key] );
+                  //window.playSound(ev.n, 0);
+								}
+							}
+						});
+
+						function onFrame(T) {
+							var aT = audioEl.currentTime;
+							es.draw(aT);
+							window.requestAnimationFrame(onFrame);
+						}
+						onFrame(0);
+					}
+				});
+
+				window.rewind = function() {
+					audioEl.currentTime = 0;
+				};
+
+				window.togglePlayback = function() {
+					var op = (audioEl.paused ? 'play' : 'pause');
+					audioEl[op]();
+				};
+
+				window.toggleAutoDrums = function() {
+					autoDrums = !autoDrums;
+				};
+			})();
+		</script>
+	</body>
+</html>

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+
+		<title>playalong</title>
+
+		<style type="text/css">
+			body {
+				font-family: sans-serif;
+			}
+		</style>
+	</head>
+
+	<body>
+		<h1>playalong - choose track</h1>
+
+		<ul>
+		</ul>
+
+    <script type="text/javascript" src="ajax.js"></script>
+
+    <script>
+      ajax({
+        uri: 'SONGS/list.json',
+        cb: function(err, res) {
+          var ulEl = document.querySelector('ul');
+          res = JSON.parse(res);
+
+          res.forEach(function(track) {
+            var label = track.replace(/_/g, ' ');
+
+            var aEl = document.createElement('a');
+            aEl.appendChild( document.createTextNode(label) );
+            aEl.href = 'playalong.html?track=' + track;
+            var liEl = document.createElement('li');
+            liEl.appendChild(aEl);
+            ulEl.appendChild(liEl);
+          });
+        }
+      });
+    </script>
+	</body>
+</html>

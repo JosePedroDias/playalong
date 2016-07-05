@@ -1,0 +1,10 @@
+get guitar pro file from network view on songsterr
+wget it
+open it on tuxguitar
+export as midi with
+- all channels
+- no drums
+- only drums
+(remove voice?)
+
+run go on the generated dir with 3 mids
